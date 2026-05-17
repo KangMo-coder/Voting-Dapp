@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🗳️ 투명한 그룹 투표 시스템</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+    <style>
+        :root { --primary: #2563eb; --danger: #dc2626; --success: #16a34a; }
+        body { font-family: 'Arial', sans-serif; background: #f8fafc; padding: 20px; color: #1e293b; max-width: 800px; margin: 0 auto; }
+        .header-container { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 20px; }
+        
+        /* 투표 상태 뱃지 */
+        .badge { padding: 6px 12px; border-radius: 20px; font-size: 0.9rem; font-weight: bold; }
+        .badge-open { background: #dcfce7; color: #166534; }
+        .badge-closed { background: #fee2e2; color: #991b1b; }
+        .badge-loading { background: #e2e8f0; color: #475569; }
+
+        .candidate-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .card { background: white; border: 1px solid #cbd5e1; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        
+        button { width: 100%; padding: 10px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-connect { background: #0f172a; color: white; margin-bottom: 15px; }
+        .btn-vote { background: var(--primary); color: white; }
+        .btn-vote:disabled { background: #94a3b8; cursor: not-allowed; }
+        
+        /* 로딩 스피너 및 알림 영역 */
+        .status-container { margin-top: 20px; padding: 15px; text-align: center; font-weight: bold; min-height: 50px; }
+        .spinner { display: none; width: 24px; height: 24px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* 관리자 패널 */
+        .admin-panel { display: none; margin-top: 30px; padding: 20px; background: #fef2f2; border: 2px dashed #fca5a5; border-radius: 10px; }
+        .admin-buttons { display: flex; gap: 10px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="header-container">
+        <h1>🗳️ 대학/동아리 투표 시스템</h1>
+        <div id="votingStatusBadge" class="badge badge-loading">상태 확인 전</div>
+    </div>
+
+    <div>
+        <button id="connectWalletBtn" class="btn-connect">메타마스크 지갑 연결</button>
+        <p style="font-size: 0.9rem; color: #475569;">내 지갑 주소: <strong id="walletAddress">연결되지 않음</strong></p>
+    </div>
+
+    <h2 style="margin-top: 30px;">후보자 목록</h2>
+    <div id="candidatesList" class="candidate-grid">
+        <p style="color: #64748b;">지갑을 연결하면 후보자 목록이 표시됩니다.</p>
+    </div>
+
+    <div class="status-container" id="statusContainer">
+        <div class="spinner" id="loadingSpinner"></div>
+        <div id="statusMessage">환영합니다! 지갑을 먼저 연결해 주세요.</div>
+    </div>
+
+    <div id="adminPanel" class="admin-panel">
+        <h3 style="margin-top: 0; color: #991b1b;">⚙️ 관리자 제어판 (Owner Only)</h3>
+        <p style="font-size: 0.9rem; color: #7f1d1d;">투표를 강제로 열거나 닫을 수 있습니다.</p>
+        <div class="admin-buttons">
+            <button onclick="toggleVoting(true)" style="background: var(--success); color: white;">투표 시작 (Open)</button>
+            <button onclick="toggleVoting(false)" style="background: var(--danger); color: white;">투표 종료 (Close)</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
