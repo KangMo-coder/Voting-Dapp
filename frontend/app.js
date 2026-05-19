@@ -309,8 +309,6 @@ async function connectWallet() {
     }
 }
 
-document.getElementById("connectWalletBtn").addEventListener("click", connectWallet);
-
 // ------------------------------------------------------------
 // [2] 대시보드 업데이트 (후보자, 투표 상태, 관리자 권한 확인)
 // ------------------------------------------------------------
@@ -443,8 +441,13 @@ function setUIStatus(isLoading, message, color) {
     
     spinner.style.display = isLoading ? "block" : "none";
     statusMsg.innerText = message;
-     // HTML 로드 완료 후 이벤트 리스너 등록
-    document.addEventListener("DOMContentLoaded", () => {
-        document.getElementById("connectWalletBtn").addEventListener("click", connectWallet);
-    });   statusMsg.style.color = color;
+    statusMsg.style.color = color;
 }
+
+// ------------------------------------------------------------
+// [이벤트 리스너 등록] HTML이 로드된 후 최초 1회만 실행!
+// ------------------------------------------------------------
+document.addEventListener("DOMContentLoaded", () => {
+    // 지갑 연결 버튼
+    document.getElementById("connectWalletBtn").addEventListener("click", connectWallet);
+});

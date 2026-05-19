@@ -364,14 +364,13 @@ contract("Voting", (accounts) => {
       assert.strictEqual(Number(results[3].voteCount), 0, "안건호: 0표");
       assert.strictEqual(Number(results[4].voteCount), 1, "엄성현: 1표");
 
-
+    });
       
     it("배포자(owner)도 후보자에게 투표할 수 있어야 한다", async () => {
       await voting.vote(1, { from: owner });
       const cand = await voting.getCandidate(1);
-      // Number() 사용으로 통일
       assert.strictEqual(Number(cand.voteCount), 1, "owner의 투표가 반영되지 않았습니다");
-      });
+      
     });
   });
 });
