@@ -1,70 +1,970 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🗳️ 투명한 그룹 투표 시스템</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
-    <style>
-        :root { --primary: #2563eb; --danger: #dc2626; --success: #16a34a; }
-        body { font-family: 'Arial', sans-serif; background: #f8fafc; padding: 20px; color: #1e293b; max-width: 800px; margin: 0 auto; }
-        .header-container { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 20px; }
-        
-        /* 투표 상태 뱃지 */
-        .badge { padding: 6px 12px; border-radius: 20px; font-size: 0.9rem; font-weight: bold; }
-        .badge-open { background: #dcfce7; color: #166534; }
-        .badge-closed { background: #fee2e2; color: #991b1b; }
-        .badge-loading { background: #e2e8f0; color: #475569; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BlockVote — 블록체인 투표 시스템</title>
 
-        .candidate-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .card { background: white; border: 1px solid #cbd5e1; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        
-        button { width: 100%; padding: 10px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .btn-connect { background: #0f172a; color: white; margin-bottom: 15px; }
-        .btn-vote { background: var(--primary); color: white; }
-        .btn-vote:disabled { background: #94a3b8; cursor: not-allowed; }
-        
-        /* 로딩 스피너 및 알림 영역 */
-        .status-container { margin-top: 20px; padding: 15px; text-align: center; font-weight: bold; min-height: 50px; }
-        .spinner { display: none; width: 24px; height: 24px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    <!-- Google Fonts: Bebas Neue (타이틀) + IBM Plex Mono (해시/주소) + Noto Sans KR (본문) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
 
-        /* 관리자 패널 */
-        .admin-panel { display: none; margin-top: 30px; padding: 20px; background: #fef2f2; border: 2px dashed #fca5a5; border-radius: 10px; }
-        .admin-buttons { display: flex; gap: 10px; margin-top: 10px; }
-    </style>
+    <!-- Ethers.js v6 CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+
+    <style>
+    /* ============================================================
+       VARIABLES & RESET
+    ============================================================ */
+    :root {
+        --bg-root:        #06091a;
+        --bg-card:        #0c1228;
+        --bg-card-hover:  #101830;
+        --bg-admin:       #080e1f;
+
+        --border:         rgba(255,255,255,0.06);
+        --border-blue:    rgba(56,120,255,0.45);
+        --border-gold:    rgba(245,166,35,0.45);
+
+        --blue:           #3878ff;
+        --blue-dim:       rgba(56,120,255,0.15);
+        --cyan:           #00d4ff;
+        --gold:           #f5a623;
+        --gold-dim:       rgba(245,166,35,0.12);
+
+        --success:        #00d97e;
+        --error:          #ff4757;
+        --warning:        #ffa502;
+        --info:           #00c6ff;
+
+        --text:           #dde3f0;
+        --text-sub:       #7080a0;
+        --text-muted:     #364060;
+
+        --font-display:   'Bebas Neue', sans-serif;
+        --font-mono:      'IBM Plex Mono', monospace;
+        --font-body:      'Noto Sans KR', sans-serif;
+
+        --radius:         12px;
+        --radius-lg:      18px;
+        --transition:     0.22s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+        font-family: var(--font-body);
+        background: var(--bg-root);
+        color: var(--text);
+        min-height: 100vh;
+        line-height: 1.6;
+        overflow-x: hidden;
+    }
+
+    /* ============================================================
+       배경: 미세 도트 + 중앙 방사형 글로우
+    ============================================================ */
+    body::before {
+        content: '';
+        position: fixed; inset: 0;
+        background-image: radial-gradient(circle, rgba(56,120,255,0.06) 1px, transparent 1px);
+        background-size: 32px 32px;
+        pointer-events: none;
+        z-index: 0;
+    }
+    body::after {
+        content: '';
+        position: fixed;
+        top: -20vh; left: 50%;
+        transform: translateX(-50%);
+        width: 80vw; height: 60vh;
+        background: radial-gradient(ellipse, rgba(56,120,255,0.08) 0%, transparent 70%);
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    /* ============================================================
+       LAYOUT WRAPPER
+    ============================================================ */
+    .page-wrap {
+        position: relative; z-index: 1;
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 0 24px 80px;
+    }
+
+    /* ============================================================
+       HEADER
+    ============================================================ */
+    header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 28px 0 24px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .logo-wrap {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+    }
+    .logo-main {
+        font-family: var(--font-display);
+        font-size: 2.4rem;
+        letter-spacing: 0.04em;
+        background: linear-gradient(90deg, #fff 0%, var(--cyan) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        line-height: 1;
+    }
+    .logo-sub {
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        color: var(--text-sub);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+    }
+
+    .header-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .wallet-badge {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 8px 16px;
+    }
+    .wallet-dot {
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        background: var(--text-muted);
+        transition: background var(--transition);
+    }
+    .wallet-dot.connected { background: var(--success); box-shadow: 0 0 8px var(--success); }
+    #wallet-address {
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        color: var(--text-sub);
+    }
+
+    #connect-btn {
+        background: var(--blue);
+        color: #fff;
+        border: none;
+        border-radius: 999px;
+        padding: 9px 22px;
+        font-family: var(--font-body);
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
+    }
+    #connect-btn:hover:not(:disabled) {
+        background: #4a8aff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 20px rgba(56,120,255,0.4);
+    }
+    #connect-btn:disabled { background: #1a2540; color: var(--text-sub); cursor: default; }
+
+    /* ============================================================
+       STATUS BAR
+    ============================================================ */
+    .status-bar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 24px 0;
+        flex-wrap: wrap;
+    }
+
+    .status-pill {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 16px;
+        border-radius: 999px;
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        border: 1px solid var(--border);
+        background: var(--bg-card);
+    }
+    .status-pill .dot {
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    #voting-status.status-open  { border-color: rgba(0,217,126,0.35); color: var(--success); }
+    #voting-status.status-open .dot {
+        background: var(--success);
+        box-shadow: 0 0 8px var(--success);
+        animation: pulse-dot 1.8s infinite;
+    }
+    #voting-status.status-closed { border-color: rgba(255,71,87,0.35); color: var(--error); }
+    #voting-status.status-closed .dot { background: var(--error); }
+
+    #whitelist-status.whitelist-ok     { color: var(--success); border-color: rgba(0,217,126,0.35); }
+    #whitelist-status.whitelist-denied { color: var(--error);   border-color: rgba(255,71,87,0.35); }
+
+    @keyframes pulse-dot {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50%       { opacity: 0.5; transform: scale(1.4); }
+    }
+
+    /* ============================================================
+       MAIN GRID (2-column)
+    ============================================================ */
+    .main-grid {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 24px;
+        align-items: start;
+    }
+    @media (max-width: 780px) {
+        .main-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ============================================================
+       WINNER CARD (좌측 패널)
+    ============================================================ */
+    #winner-section {
+        display: none;
+        background: var(--gold-dim);
+        border: 1px solid var(--border-gold);
+        border-radius: var(--radius-lg);
+        padding: 28px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+    #winner-section::before {
+        content: '';
+        position: absolute; inset: 0;
+        background: radial-gradient(ellipse at 50% -20%, rgba(245,166,35,0.12) 0%, transparent 60%);
+        pointer-events: none;
+    }
+
+    #winner-label {
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        margin-bottom: 16px;
+        display: block;
+    }
+    #winner-label.label-official { color: var(--gold); }
+    #winner-label.label-live     { color: var(--cyan); }
+
+    #winner-name {
+        font-family: var(--font-display);
+        font-size: 3.2rem;
+        letter-spacing: 0.04em;
+        color: #fff;
+        line-height: 1;
+        margin-bottom: 10px;
+    }
+    #winner-votes {
+        font-family: var(--font-mono);
+        font-size: 1rem;
+        color: var(--gold);
+    }
+
+    .winner-icon {
+        font-size: 2.2rem;
+        display: block;
+        margin-bottom: 12px;
+        animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50%       { transform: translateY(-6px); }
+    }
+
+    /* 총 투표 현황 카드 */
+    .stats-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 22px 24px;
+        margin-top: 0;
+    }
+    .stats-card-title {
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        color: var(--text-sub);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin-bottom: 14px;
+    }
+
+    /* ============================================================
+       CANDIDATES PANEL (우측 패널)
+    ============================================================ */
+    .candidates-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+    }
+    .panel-title {
+        font-family: var(--font-display);
+        font-size: 1.6rem;
+        letter-spacing: 0.04em;
+        color: #fff;
+    }
+    .panel-count {
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        color: var(--text-sub);
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 4px 12px;
+    }
+
+    /* ============================================================
+       CANDIDATE CARD
+    ============================================================ */
+    #candidates-container {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .candidate-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 20px 24px;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        grid-template-rows: auto auto auto;
+        gap: 10px 16px;
+        align-items: center;
+        transition: border-color var(--transition), background var(--transition), transform var(--transition);
+        cursor: default;
+    }
+    .candidate-card:hover {
+        border-color: var(--border-blue);
+        background: var(--bg-card-hover);
+        transform: translateX(3px);
+    }
+
+    .candidate-info {
+        grid-column: 1;
+        grid-row: 1;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .candidate-number {
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        background: rgba(255,255,255,0.04);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 3px 9px;
+        white-space: nowrap;
+    }
+    .candidate-name {
+        font-size: 1.05rem;
+        font-weight: 500;
+        color: #fff;
+    }
+
+    /* 프로그레스 바 */
+    .vote-bar-wrap {
+        grid-column: 1;
+        grid-row: 2;
+        height: 4px;
+        background: rgba(255,255,255,0.05);
+        border-radius: 999px;
+        overflow: hidden;
+    }
+    .vote-bar {
+        height: 100%;
+        background: linear-gradient(90deg, var(--blue) 0%, var(--cyan) 100%);
+        border-radius: 999px;
+        transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+        min-width: 0;
+    }
+
+    .vote-stats {
+        grid-column: 1;
+        grid-row: 3;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .vote-count {
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        color: var(--cyan);
+        font-weight: 600;
+    }
+    .vote-percent {
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        color: var(--text-sub);
+    }
+
+    .vote-btn {
+        grid-column: 2;
+        grid-row: 1 / 4;
+        align-self: center;
+        padding: 10px 22px;
+        border-radius: 999px;
+        border: none;
+        font-family: var(--font-body);
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all var(--transition);
+    }
+    .vote-btn.active {
+        background: var(--blue);
+        color: #fff;
+        box-shadow: 0 0 20px rgba(56,120,255,0.3);
+    }
+    .vote-btn.active:hover {
+        background: #4a8aff;
+        transform: scale(1.04);
+        box-shadow: 0 4px 24px rgba(56,120,255,0.5);
+    }
+    .vote-btn.disabled {
+        background: rgba(255,255,255,0.04);
+        color: var(--text-muted);
+        cursor: not-allowed;
+        border: 1px solid var(--border);
+    }
+
+    .empty-msg {
+        color: var(--text-sub);
+        font-size: 0.9rem;
+        padding: 40px 0;
+        text-align: center;
+    }
+
+    /* ============================================================
+       ADMIN PANEL
+    ============================================================ */
+    #admin-panel {
+        display: none;
+        margin-top: 40px;
+        background: var(--bg-admin);
+        border: 1px solid var(--border-blue);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+    }
+
+    .admin-header {
+        background: var(--blue-dim);
+        border-bottom: 1px solid var(--border-blue);
+        padding: 16px 28px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .admin-header-icon { font-size: 1rem; }
+    .admin-header-title {
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--cyan);
+    }
+    .admin-header-badge {
+        font-family: var(--font-mono);
+        font-size: 0.65rem;
+        background: rgba(56,120,255,0.2);
+        color: var(--blue);
+        border: 1px solid var(--border-blue);
+        border-radius: 999px;
+        padding: 2px 9px;
+        letter-spacing: 0.06em;
+    }
+
+    .admin-body {
+        padding: 28px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+    }
+
+    .admin-section {
+        background: rgba(255,255,255,0.02);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 18px;
+    }
+    .admin-section-title {
+        font-family: var(--font-mono);
+        font-size: 0.68rem;
+        color: var(--text-sub);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        margin-bottom: 14px;
+    }
+
+    .admin-input-row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+    .admin-input {
+        flex: 1;
+        background: rgba(0,0,0,0.3);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text);
+        padding: 9px 12px;
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        outline: none;
+        transition: border-color var(--transition);
+    }
+    .admin-input:focus { border-color: var(--border-blue); }
+    .admin-input::placeholder { color: var(--text-muted); }
+    textarea.admin-input { resize: vertical; min-height: 72px; }
+
+    .admin-btn {
+        padding: 9px 18px;
+        border-radius: 8px;
+        border: none;
+        font-family: var(--font-body);
+        font-size: 0.82rem;
+        font-weight: 500;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all var(--transition);
+    }
+    .admin-btn.primary {
+        background: var(--blue-dim);
+        color: var(--cyan);
+        border: 1px solid var(--border-blue);
+    }
+    .admin-btn.primary:hover {
+        background: rgba(56,120,255,0.25);
+        box-shadow: 0 0 14px rgba(56,120,255,0.2);
+    }
+    .admin-btn.danger {
+        background: rgba(255,71,87,0.1);
+        color: var(--error);
+        border: 1px solid rgba(255,71,87,0.3);
+    }
+    .admin-btn.danger:hover  { background: rgba(255,71,87,0.2); }
+    .admin-btn.success-btn {
+        background: rgba(0,217,126,0.1);
+        color: var(--success);
+        border: 1px solid rgba(0,217,126,0.3);
+    }
+    .admin-btn.success-btn:hover { background: rgba(0,217,126,0.2); }
+
+    .voting-control-btns {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 6px;
+    }
+    .voting-control-btns .admin-btn { flex: 1; min-width: 100px; text-align: center; }
+
+    /* ============================================================
+       STATUS TOAST (하단 고정 알림)
+    ============================================================ */
+    #status-message {
+        display: none;
+        position: fixed;
+        bottom: 28px; left: 50%;
+        transform: translateX(-50%);
+        z-index: 1000;
+        padding: 12px 24px;
+        border-radius: 999px;
+        font-family: var(--font-body);
+        font-size: 0.88rem;
+        font-weight: 500;
+        white-space: nowrap;
+        max-width: 90vw;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        animation: toast-in 0.3s cubic-bezier(0.4,0,0.2,1);
+        backdrop-filter: blur(12px);
+    }
+    @keyframes toast-in {
+        from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+        to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+    .status-success { background: rgba(0,217,126,0.15); border: 1px solid rgba(0,217,126,0.4); color: var(--success); }
+    .status-error   { background: rgba(255,71,87,0.15);  border: 1px solid rgba(255,71,87,0.4);  color: var(--error); }
+    .status-warning { background: rgba(255,165,2,0.15);  border: 1px solid rgba(255,165,2,0.4);  color: var(--warning); }
+    .status-info    { background: rgba(0,196,255,0.1);   border: 1px solid rgba(0,196,255,0.35); color: var(--info); }
+
+    /* ============================================================
+       LOADING OVERLAY
+    ============================================================ */
+    #loading-overlay {
+        display: none;
+        position: fixed; inset: 0;
+        background: rgba(6,9,26,0.85);
+        backdrop-filter: blur(6px);
+        z-index: 999;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+    }
+
+    .spinner {
+        width: 48px; height: 48px;
+        border: 3px solid var(--border);
+        border-top-color: var(--blue);
+        border-right-color: var(--cyan);
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #loading-message {
+        font-family: var(--font-mono);
+        font-size: 0.82rem;
+        color: var(--text-sub);
+        text-align: center;
+        white-space: pre-line;
+        max-width: 320px;
+    }
+
+    /* ============================================================
+       SECTION DIVIDER
+    ============================================================ */
+    .section-label {
+        font-family: var(--font-mono);
+        font-size: 0.65rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+    .section-label::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+    }
+
+    /* ============================================================
+       FOOTER
+    ============================================================ */
+    .footer {
+        margin-top: 60px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+    .footer-left {
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        color: var(--text-muted);
+    }
+    .footer-chain {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        color: var(--text-muted);
+    }
+    .chain-dot {
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: var(--success);
+        box-shadow: 0 0 6px var(--success);
+    }
+
+    /* ============================================================
+       PAGE LOAD ANIMATION
+    ============================================================ */
+    .fade-in {
+        animation: fade-in 0.5s ease both;
+    }
+    @keyframes fade-in {
+        from { opacity: 0; transform: translateY(16px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    header     { animation: fade-in 0.4s ease both; }
+    .status-bar{ animation: fade-in 0.5s 0.08s ease both; }
+    .main-grid { animation: fade-in 0.5s 0.16s ease both; }
+    #admin-panel { animation: fade-in 0.5s 0.24s ease both; }
+    </style>
 </head>
+
 <body>
+<!-- ============================================================
+     LOADING OVERLAY — 트랜잭션 대기 중 화면 전체 잠금
+============================================================ -->
+<div id="loading-overlay">
+    <div class="spinner"></div>
+    <p id="loading-message">처리 중...</p>
+</div>
 
-    <div class="header-container">
-        <h1>🗳️ 대학/동아리 투표 시스템</h1>
-        <div id="votingStatusBadge" class="badge badge-loading">상태 확인 전</div>
-    </div>
+<!-- ============================================================
+     STATUS TOAST — 하단 고정 알림 메시지
+============================================================ -->
+<div id="status-message"></div>
 
-    <div>
-        <button id="connectWalletBtn" class="btn-connect">메타마스크 지갑 연결</button>
-        <p style="font-size: 0.9rem; color: #475569;">내 지갑 주소: <strong id="walletAddress">연결되지 않음</strong></p>
-    </div>
 
-    <h2 style="margin-top: 30px;">후보자 목록</h2>
-    <div id="candidatesList" class="candidate-grid">
-        <p style="color: #64748b;">지갑을 연결하면 후보자 목록이 표시됩니다.</p>
-    </div>
+<div class="page-wrap">
 
-    <div class="status-container" id="statusContainer">
-        <div class="spinner" id="loadingSpinner"></div>
-        <div id="statusMessage">환영합니다! 지갑을 먼저 연결해 주세요.</div>
-    </div>
+    <!-- ============================================================
+         HEADER
+    ============================================================ -->
+    <header>
+        <div class="logo-wrap">
+            <span class="logo-main">BlockVote</span>
+            <span class="logo-sub">Decentralized Voting DApp</span>
+        </div>
 
-    <div id="adminPanel" class="admin-panel">
-        <h3 style="margin-top: 0; color: #991b1b;">⚙️ 관리자 제어판 (Owner Only)</h3>
-        <p style="font-size: 0.9rem; color: #7f1d1d;">투표를 강제로 열거나 닫을 수 있습니다.</p>
-        <div class="admin-buttons">
-            <button onclick="toggleVoting(true)" style="background: var(--success); color: white;">투표 시작 (Open)</button>
-            <button onclick="toggleVoting(false)" style="background: var(--danger); color: white;">투표 종료 (Close)</button>
-        </div>
-    </div>
+        <div class="header-right">
+            <div class="wallet-badge">
+                <span class="wallet-dot" id="wallet-dot"></span>
+                <span id="wallet-address">연결되지 않음</span>
+            </div>
+            <button id="connect-btn" onclick="connectWallet()">지갑 연결</button>
+        </div>
+    </header>
 
-    <script src="app.js"></script>
+
+    <!-- ============================================================
+         STATUS BAR
+    ============================================================ -->
+    <div class="status-bar">
+        <div class="status-pill" id="voting-status">
+            <span class="dot"></span>
+            <span>연결 대기 중</span>
+        </div>
+        <div class="status-pill" id="whitelist-status">
+            <span class="dot" style="background:var(--text-muted)"></span>
+            <span>권한 확인 중</span>
+        </div>
+    </div>
+
+
+    <!-- ============================================================
+         MAIN GRID (2-column: 좌-현황 / 우-후보자)
+    ============================================================ -->
+    <div class="main-grid">
+
+        <!-- 좌측: 현재 1위 / 당선자 -->
+        <div>
+            <div class="section-label">현황</div>
+
+            <!-- 당선자 / 현재 1위 카드 -->
+            <div id="winner-section" style="margin-bottom:16px;">
+                <span class="winner-icon">🏆</span>
+                <span id="winner-label" class="winner-label label-live">현재 1위</span>
+                <div id="winner-name">—</div>
+                <div id="winner-votes" style="margin-top:8px;">0표</div>
+            </div>
+
+            <!-- 투표 현황 요약 카드 -->
+            <div class="stats-card">
+                <div class="stats-card-title">// 투표 현황</div>
+                <div id="stats-body" style="color:var(--text-sub); font-size:0.85rem; font-family:var(--font-mono);">
+                    지갑을 연결하면<br>투표 현황을 확인할 수 있습니다.
+                </div>
+            </div>
+        </div>
+
+        <!-- 우측: 후보자 투표 목록 -->
+        <div class="candidates-panel">
+            <div class="panel-header">
+                <span class="panel-title">후보자</span>
+                <span class="panel-count" id="candidate-count">0명</span>
+            </div>
+            <div id="candidates-container">
+                <p class="empty-msg">지갑을 연결하면 후보자 목록이 표시됩니다.</p>
+            </div>
+        </div>
+
+    </div><!-- /main-grid -->
+
+
+    <!-- ============================================================
+         ADMIN PANEL (owner 계정 연결 시에만 표시)
+    ============================================================ -->
+    <div id="admin-panel">
+        <div class="admin-header">
+            <span class="admin-header-icon">⚙️</span>
+            <span class="admin-header-title">Admin Panel</span>
+            <span class="admin-header-badge">OWNER ONLY</span>
+        </div>
+
+        <div class="admin-body">
+
+            <!-- 유권자 1명 등록 -->
+            <div class="admin-section">
+                <div class="admin-section-title">// 유권자 등록 (1명)</div>
+                <div class="admin-input-row">
+                    <input
+                        type="text"
+                        id="voter-address-input"
+                        class="admin-input"
+                        placeholder="0x... 지갑 주소"
+                    >
+                    <button class="admin-btn primary" onclick="addVoter()">등록</button>
+                </div>
+            </div>
+
+            <!-- 유권자 일괄 등록 -->
+            <div class="admin-section">
+                <div class="admin-section-title">// 유권자 일괄 등록</div>
+                <textarea
+                    id="voters-list-input"
+                    class="admin-input"
+                    placeholder="0xAAA..., 0xBBB..., 0xCCC...&#10;쉼표로 구분하여 여러 명 입력"
+                ></textarea>
+                <button class="admin-btn primary" style="width:100%;margin-top:8px;" onclick="addVoters()">
+                    일괄 등록
+                </button>
+            </div>
+
+            <!-- 유권자 등록 취소 -->
+            <div class="admin-section">
+                <div class="admin-section-title">// 유권자 등록 취소</div>
+                <div class="admin-input-row">
+                    <input
+                        type="text"
+                        id="remove-voter-input"
+                        class="admin-input"
+                        placeholder="0x... 제거할 주소"
+                    >
+                    <button class="admin-btn danger" onclick="removeVoter()">제거</button>
+                </div>
+            </div>
+
+            <!-- 후보자 추가 -->
+            <div class="admin-section">
+                <div class="admin-section-title">// 후보자 추가</div>
+                <div class="admin-input-row">
+                    <input
+                        type="text"
+                        id="candidate-name-input"
+                        class="admin-input"
+                        placeholder="후보자 이름"
+                    >
+                    <button class="admin-btn primary" onclick="addCandidate()">추가</button>
+                </div>
+            </div>
+
+            <!-- 투표 개폐 -->
+            <div class="admin-section">
+                <div class="admin-section-title">// 투표 관리</div>
+                <div class="voting-control-btns">
+                    <button class="admin-btn danger"      onclick="closeVoting()">투표 종료</button>
+                    <button class="admin-btn success-btn" onclick="openVoting()">투표 재개</button>
+                </div>
+                <p style="font-size:0.72rem;color:var(--text-muted);margin-top:10px;font-family:var(--font-mono);">
+                    ※ 종료 시 당선자가 자동 선언됩니다
+                </p>
+            </div>
+
+        </div><!-- /admin-body -->
+    </div><!-- /admin-panel -->
+
+
+    <!-- ============================================================
+         FOOTER
+    ============================================================ -->
+    <div class="footer">
+        <div class="footer-left">
+            블록체인개론 기말 프로젝트 · 202035104 강원모
+        </div>
+        <div class="footer-chain">
+            <span class="chain-dot"></span>
+            <span>Ganache Local Network</span>
+        </div>
+    </div>
+
+</div><!-- /page-wrap -->
+
+
+<!-- ============================================================
+     app.js 마지막에 로드 (DOM 렌더링 완료 후)
+============================================================ -->
+<script src="app.js"></script>
+
+<!-- app.js의 renderCandidates 이후 보조 UI 갱신 -->
+<script>
+// 후보자 카드 렌더링 후 상단 카운트 및 통계 갱신
+const _origRender = window.renderCandidates;
+// renderCandidates 이후 candidate-count 업데이트
+const _origUpdate = window.updateDashboard;
+if (typeof _origUpdate === 'function') {
+    window.updateDashboard = async function() {
+        await _origUpdate();
+        _syncStatsCard();
+    };
+}
+
+// 지갑 연결 후 dot 색상 변경
+const _origConnect = window.connectWallet;
+if (typeof _origConnect === 'function') {
+    window.connectWallet = async function() {
+        await _origConnect();
+        const dot = document.getElementById('wallet-dot');
+        if (dot) dot.classList.add('connected');
+    };
+}
+
+// 통계 카드 동기화 (총 투표수 표시)
+async function _syncStatsCard() {
+    if (!window.contract) return;
+    try {
+        const candidates = await window.contract.getAllCandidates();
+        const total = candidates.reduce((s, c) => s + Number(c.voteCount), 0);
+        const countEl = document.getElementById('candidate-count');
+        if (countEl) countEl.textContent = `${candidates.length}명`;
+
+        const statsEl = document.getElementById('stats-body');
+        if (statsEl) {
+            statsEl.innerHTML = `
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span style="color:var(--text-sub)">총 투표 수</span>
+                        <span style="color:var(--cyan);font-weight:600;">${total}표</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span style="color:var(--text-sub)">후보자 수</span>
+                        <span style="color:var(--text)">${candidates.length}명</span>
+                    </div>
+                </div>`;
+        }
+    } catch(e) {}
+}
+</script>
+
 </body>
 </html>
