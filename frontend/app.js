@@ -20,12 +20,12 @@
 
 // truffle migrate 실행 후 터미널에 출력된 주소로 교체
 // 예: "0xAbc123...def456"
-const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000000";
+const CONTRACT_ADDRESS = "0x24eA55c823f2D3f606a55A636284CF2557C3353B";
 
 // Voting.json 경로
 // truffle compile 결과물이 같은 폴더에 있으면 "./Voting.json"
 // 폴더 구조가 다르면 "../build/contracts/Voting.json" 으로 수정
-const ABI_PATH = "./Voting.json";
+const ABI_PATH = "../build/contracts/Voting.json";
 
 
 // ============================================================
@@ -262,6 +262,27 @@ async function updateDashboard() {
 
         // 현재 1위 / 당선자 섹션 갱신
         await updateWinnerDisplay();
+
+        // [UI 버그 수정] 후보자 수 카드 갱신
+        const countEl = document.getElementById('candidate-count');
+        if (countEl) countEl.textContent = `${candidates.length}명`;
+
+        // [UI 버그 수정] 투표 현황 통계 카드 갱신
+        const total = candidates.reduce((s, c) => s + Number(c.voteCount), 0);
+        const statsEl = document.getElementById('stats-body');
+        if (statsEl) {
+            statsEl.innerHTML = `
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span style="color:var(--text-sub)">총 투표 수</span>
+                        <span style="color:var(--cyan);font-weight:600;">${total}표</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span style="color:var(--text-sub)">후보자 수</span>
+                        <span style="color:var(--text)">${candidates.length}명</span>
+                    </div>
+                </div>`;
+        }
 
     } catch (err) {
         console.error("대시보드 갱신 오류:", err);
